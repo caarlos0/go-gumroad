@@ -10,6 +10,7 @@ import (
 )
 
 func TestIntegrationInvalidLicense(t *testing.T) {
+	t.Parallel()
 	expected := "license: invalid license: That license does not exist for the provided product."
 	err := Check("this-does-not-exist-probably", "nope")
 	if err == nil || err.Error() != expected {
@@ -18,6 +19,7 @@ func TestIntegrationInvalidLicense(t *testing.T) {
 }
 
 func TestErrors(t *testing.T) {
+	t.Parallel()
 	for name, tt := range map[string]struct {
 		resp GumroadResponse
 		eeer string
@@ -68,6 +70,7 @@ func TestErrors(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
+			t.Parallel()
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				bts, err := json.Marshal(tt.resp)
 				if err != nil {
@@ -81,7 +84,7 @@ func TestErrors(t *testing.T) {
 
 			if tt.eeer == "" {
 				if err != nil {
-					t.Fatalf("expacted no error, got %v", err)
+					t.Fatalf("expected no error, got %v", err)
 				}
 			} else {
 				if err == nil || err.Error() != tt.eeer {
