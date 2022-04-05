@@ -2,6 +2,8 @@
 package gumroad
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,8 +17,37 @@ func Check(product, key string) error {
 	return doCheck("https://api.gumroad.com/v2/licenses/verify", product, key)
 }
 
+// Capture the root certificate pool at build time. `x509.SystemCertPool` is guaranteed not to return
+// an error when GOOS is darwin or windows. When GOOS is unix or plan9, `x509.SystemCertPool` will
+// only return an error if it was unable to find or parse any system certificates.
+var certPool, _ = x509.SystemCertPool()
+
+// construct a package-level http.RoundTripper to use instead of http.DefaultTransport
+var transport = &http.Transport{
+	// don't use the runtime system's cert pool, since it may include a certificate
+	// that this package does not want to trust
+	TLSClientConfig: &tls.Config{RootCAs: certPool},
+
+	// since TLSClientConfig above is not nil, HTTP/2 needs to be explicitly enabled
+	ForceAttemptHTTP2: true,
+
+	// copy the other non-zero-value attributes from http.DefaultTransport
+	MaxIdleConns:          100,
+	IdleConnTimeout:       90 * time.Second,
+	TLSHandshakeTimeout:   10 * time.Second,
+	ExpectContinueTimeout: 1 * time.Second,
+	Proxy:                 http.ProxyFromEnvironment,
+}
+
+// construct a package-local client to use instead of http.DefaultClient
+var client = &http.Client{
+	// 5 seconds should be plenty for GumRoad to respond
+	Timeout:   5 * time.Second,
+	Transport: transport,
+}
+
 func doCheck(api, product, key string) error {
-	resp, err := http.PostForm(api,
+	resp, err := client.PostForm(api,
 		url.Values{
 			"product_permalink": {product},
 			"license_key":       {key},
