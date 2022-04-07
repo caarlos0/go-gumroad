@@ -100,6 +100,6 @@ type Purchase struct {
 	Refunded                bool      `json:"refunded"`
 	SaleTimestamp           time.Time `json:"sale_timestamp"`
 	SubscriptionCancelledAt time.Time `json:"subscription_cancelled_at"`
-	SubscriptionFailedAt    time.Time `json:"subscription_failea_dat"`
+	SubscriptionFailedAt    time.Time `json:"subscription_failed_at"`
 	SubscriptionID          string    `json:"subscription_id"`
 }
