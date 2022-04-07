@@ -1,7 +1,6 @@
 package gumroad
 
 import (
-	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -10,7 +9,6 @@ import (
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -19,9 +17,22 @@ import (
 func TestIntegrationInvalidLicense(t *testing.T) {
 	t.Parallel()
 	expected := "license: invalid license: That license does not exist for the provided product."
-	err := Check("this-does-not-exist-probably", "nope")
+	p, err := NewGumroadProduct("this-does-not-exist-probably")
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
+	err = p.Verify("nope")
 	if err == nil || err.Error() != expected {
 		t.Errorf("expected an error %q, got %v", expected, err)
+	}
+}
+
+func TestEmptyProduct(t *testing.T) {
+	t.Parallel()
+	expected := "license: product permalink cannot be empty"
+	_, err := NewGumroadProduct("")
+	if err == nil || err.Error() != expected {
+		t.Fatalf("expected %q, got %v", expected, err)
 	}
 }
 
@@ -40,7 +51,12 @@ func TestErrors(t *testing.T) {
 			}))
 			t.Cleanup(ts.Close)
 
-			err := doCheck(ts.URL, tt.product, tt.key)
+			p, err := NewGumroadProduct(tt.product)
+			if err != nil {
+				t.Errorf("unexpected error %v", err)
+			}
+			p.API = ts.URL
+			err = p.Verify(tt.key)
 
 			if tt.eeer == "" {
 				if err != nil {
@@ -54,9 +70,6 @@ func TestErrors(t *testing.T) {
 		})
 	}
 }
-
-//go:generate go run generate_cert.go -host 127.0.0.1,::1 -ca self -duration 87600h -rsa-bits 4096    -out testdata/ca.pem
-//go:generate go run generate_cert.go -host 127.0.0.1,::1 -ca testdata/ca.pem       -ecdsa-curve P256 -out testdata/mitm.pem
 
 func TestMITM(t *testing.T) {
 	t.Parallel()
@@ -96,71 +109,62 @@ func TestMITM(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	// add server's certificate to the trusted pool, as if it was signed by one the build system's
-	// trusted CAs (which is the case for GumRoad).
-	certPool.AddCert(server.Certificate())
-
-	err := doCheck(server.URL, "product", "fake-key")
+	p, err := NewGumroadProduct("product")
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
+	p.API = server.URL
+	// Save the default client, which does not trust the test TLS certificate
+	defaultClient := p.Client
+	// The server.Client() is configured to trust the test TLS certificate
+	p.Client = server.Client()
+	err = p.Verify("fake-key")
 	if !strings.Contains(err.Error(), "invalid license") {
 		t.Fatalf("expected error to indicate that the license is invalid, but got: %s", err)
 	}
-
-	if err := doCheck(server.URL, "product", license); err != nil {
+	if err := p.Verify(license); err != nil {
 		t.Fatalf("unexpected error when checking valid key: %s", err)
 	}
 
 	// mitm will act as a man-in-the-middle proxy, and will respond as if any license is valid
-	mitm := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+	mitm := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Header().Add("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(GumroadResponse{Success: true}); err != nil {
 			t.Errorf("error encoding response: %s", err)
 		}
 	}))
-
-	mitm.TLS = &tls.Config{Certificates: []tls.Certificate{parseCert(t, "mitm.pem")}}
-	mitm.Config.ErrorLog = log.New(ioutil.Discard, "", 0)
-	mitm.StartTLS()
 	t.Cleanup(mitm.Close)
+	// Throw away the log message from http.Server.go complaining about the invalid TLS cert
+	mitm.Config.ErrorLog = log.New(ioutil.Discard, "", 0)
 
-	err = doCheck(mitm.URL, "product", license)
-	if !strings.Contains(err.Error(), "failed check license") {
+	p.API = mitm.URL
+	// Set the client back to the default, which doesn't trust the test certificate used by mitm
+	p.Client = defaultClient
+	err = p.Verify(license)
+	if err == nil {
+		t.Fatalf("MITM was successful")
+	} else if !strings.Contains(err.Error(), "failed check license") {
 		t.Fatalf("expected error to indicate that the license check failed, but got: %s", err)
 	}
 
 	// proxyServer will act as a legitimate reverse proxy
 	serverURL, _ := url.Parse(server.URL)
 	proxy := httputil.NewSingleHostReverseProxy(serverURL)
-	proxy.Transport = transport
+	// The proxy needs to trust the test TLS certificate
+	proxy.Transport = server.Client().Transport
 	proxyServer := httptest.NewTLSServer(proxy)
 	t.Cleanup(proxyServer.Close)
 
-	err = doCheck(proxyServer.URL, "product", "fake-key")
+	p.API = proxyServer.URL
+	p.Client = proxyServer.Client()
+	err = p.Verify("fake-key")
 	if !strings.Contains(err.Error(), "invalid license") {
 		t.Fatalf("expected error to indicate that the license is invalid, but got: %s", err)
 	}
-
-	if err := doCheck(proxyServer.URL, "product", license); err != nil {
+	if err := p.Verify(license); err != nil {
 		t.Fatalf("unexpected error when checking valid key: %s", err)
 	}
-}
-
-func parseCert(t *testing.T, file string) tls.Certificate {
-	t.Helper()
-
-	fp := filepath.Join("testdata", file)
-
-	bytes, err := ioutil.ReadFile(fp)
-	if err != nil {
-		t.Fatalf("cannot read %s: %s", fp, err)
-	}
-
-	cert, err := tls.X509KeyPair(bytes, bytes)
-	if err != nil {
-		t.Fatalf("error creating tls.Certificate: %s", err)
-	}
-
-	return cert
 }
 
 func BenchmarkErrors(b *testing.B) {
@@ -176,7 +180,9 @@ func BenchmarkErrors(b *testing.B) {
 			b.Cleanup(ts.Close)
 
 			for n := 0; n < b.N; n++ {
-				_ = doCheck(ts.URL, "product", "key")
+				p, _ := NewGumroadProduct("product")
+				p.API = ts.URL
+				_ = p.Verify("key")
 			}
 		})
 	}
@@ -236,12 +242,8 @@ var testCases = map[string]struct {
 			},
 		},
 	},
-	"blank product": {
-		product: "", key: "key",
-		eeer: "license: failed check license: product is blank",
-	},
 	"blank key": {
 		product: "product", key: "",
-		eeer: "license: failed check license: license key is blank",
+		eeer: "license: license key cannot be empty",
 	},
 }
