@@ -2,63 +2,81 @@
 package gumroad
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"time"
 )
 
-// Check a key against a product permalink in gumroad.
-func Check(product, key string) error {
-	return doCheck("https://api.gumroad.com/v2/licenses/verify", product, key)
+// GumroadProduct represents a product in Gumroad on which license keys can be verified.
+type GumroadProduct struct {
+	API     string
+	Product string
+	Client  *http.Client
 }
 
-// Capture the root certificate pool at build time. `x509.SystemCertPool` is guaranteed not to return
-// an error when GOOS is darwin or windows. When GOOS is unix or plan9, `x509.SystemCertPool` will
-// only return an error if it was unable to find or parse any system certificates.
-var certPool, _ = x509.SystemCertPool()
-
-// construct a package-level http.RoundTripper to use instead of http.DefaultTransport
-var transport = &http.Transport{
-	// don't use the runtime system's cert pool, since it may include a certificate
-	// that this package does not want to trust
-	TLSClientConfig: &tls.Config{RootCAs: certPool},
-
-	// since TLSClientConfig above is not nil, HTTP/2 needs to be explicitly enabled
-	ForceAttemptHTTP2: true,
-
-	// copy the other non-zero-value attributes from http.DefaultTransport
-	MaxIdleConns:          100,
-	IdleConnTimeout:       90 * time.Second,
-	TLSHandshakeTimeout:   10 * time.Second,
-	ExpectContinueTimeout: 1 * time.Second,
-	Proxy:                 http.ProxyFromEnvironment,
-}
-
-// construct a package-local client to use instead of http.DefaultClient
-var client = &http.Client{
-	// 5 seconds should be plenty for GumRoad to respond
-	Timeout:   5 * time.Second,
-	Transport: transport,
-}
-
-func doCheck(api, product, key string) error {
-	switch "" {
-	case product:
-		return fmt.Errorf("license: failed check license: product is blank")
-	case key:
-		return fmt.Errorf("license: failed check license: license key is blank")
+// NewGumroadProduct returns a new GumroadProduct with reasonable defaults.
+func NewGumroadProduct(product string) (GumroadProduct, error) {
+	// early return if product permalink is empty
+	if product == "" {
+		return GumroadProduct{}, errors.New("license: product permalink cannot be empty")
 	}
 
-	resp, err := client.PostForm(api,
-		url.Values{
-			"product_permalink": {product},
-			"license_key":       {key},
-		})
+	// Capture the root certificate pool at build time. `x509.SystemCertPool` is guaranteed not to return
+	// an error when GOOS is darwin or windows. When GOOS is unix or plan9, `x509.SystemCertPool` will
+	// only return an error if it was unable to find or parse any system certificates.
+	certPool, _ := x509.SystemCertPool()
+
+	// construct a package-level http.RoundTripper to use instead of http.DefaultTransport
+	transport := &http.Transport{
+		// don't use the runtime system's cert pool, since it may include a certificate
+		// that this package does not want to trust
+		TLSClientConfig: &tls.Config{RootCAs: certPool},
+
+		// since TLSClientConfig above is not nil, HTTP/2 needs to be explicitly enabled
+		ForceAttemptHTTP2: true,
+
+		// copy the other non-zero-value attributes from http.DefaultTransport
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		Proxy:                 http.ProxyFromEnvironment,
+	}
+
+	return GumroadProduct{
+		API:     "https://api.gumroad.com/v2/licenses/verify",
+		Product: product,
+		Client: &http.Client{
+			// 5 seconds should be plenty for GumRoad to respond
+			Timeout:   5 * time.Second,
+			Transport: transport,
+		},
+	}, nil
+}
+
+// CheckWithContext verifies a license key against a product in Gumroad.
+func (gp GumroadProduct) VerifyWithContext(ctx context.Context, key string) error {
+	// early return if license key is empty
+	if key == "" {
+		return errors.New("license: license key cannot be empty")
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", gp.API, strings.NewReader(url.Values{
+		"product_permalink": {gp.Product},
+		"license_key":       {key},
+	}.Encode()))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	resp, err := gp.Client.Do(req)
 	if err != nil {
 		return fmt.Errorf("license: failed check license: %w", err)
 	}
@@ -91,6 +109,11 @@ func doCheck(api, product, key string) error {
 	}
 
 	return nil
+}
+
+// Verify returns the result of VerifyWithContext with the background context.
+func (gp GumroadProduct) Verify(key string) error {
+	return gp.VerifyWithContext(context.Background(), key)
 }
 
 // GumroadResponse is an API response.
