@@ -86,6 +86,7 @@ func doCheck(api, product, key string) error {
 	return nil
 }
 
+// GumroadResponse is an API response.
 type GumroadResponse struct {
 	Success  bool     `json:"success"`
 	Uses     int      `json:"uses"`
@@ -93,6 +94,7 @@ type GumroadResponse struct {
 	Message  string   `json:"message"`
 }
 
+// Purchase is Purchase from the GumRoad API
 type Purchase struct {
 	Email                   string    `json:"email"`
 	Refunded                bool      `json:"refunded"`
