@@ -47,6 +47,13 @@ var client = &http.Client{
 }
 
 func doCheck(api, product, key string) error {
+	switch "" {
+	case product:
+		return fmt.Errorf("license: failed check license: product is blank")
+	case key:
+		return fmt.Errorf("license: failed check license: license key is blank")
+	}
+
 	resp, err := client.PostForm(api,
 		url.Values{
 			"product_permalink": {product},
