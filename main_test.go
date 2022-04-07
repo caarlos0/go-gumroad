@@ -27,11 +27,13 @@ func TestIntegrationInvalidLicense(t *testing.T) {
 
 func TestErrors(t *testing.T) {
 	t.Parallel()
-	for name, tt := range map[string]struct {
-		resp GumroadResponse
-		eeer string
+	for name, val := range map[string]struct {
+		product, key string
+		resp         GumroadResponse
+		eeer         string
 	}{
 		"invalid license": {
+			product: "product", key: "key",
 			resp: GumroadResponse{
 				Success: false,
 				Message: "some error",
@@ -39,6 +41,7 @@ func TestErrors(t *testing.T) {
 			eeer: "license: invalid license: some error",
 		},
 		"refunded": {
+			product: "product", key: "key",
 			resp: GumroadResponse{
 				Success: true,
 				Purchase: Purchase{
@@ -48,6 +51,7 @@ func TestErrors(t *testing.T) {
 			eeer: "license: license was refunded and is now invalid",
 		},
 		"canceled": {
+			product: "product", key: "key",
 			resp: GumroadResponse{
 				Success: true,
 				Purchase: Purchase{
@@ -57,6 +61,7 @@ func TestErrors(t *testing.T) {
 			eeer: "license: subscription was canceled, license is now invalid",
 		},
 		"failed": {
+			product: "product", key: "key",
 			resp: GumroadResponse{
 				Success: true,
 				Purchase: Purchase{
@@ -67,6 +72,7 @@ func TestErrors(t *testing.T) {
 			eeer: "license: failed to renew subscription, please check at https://gumroad.com/subscriptions/xyz/manage",
 		},
 		"valid": {
+			product: "product", key: "key",
 			resp: GumroadResponse{
 				Success: true,
 				Purchase: Purchase{
@@ -75,7 +81,16 @@ func TestErrors(t *testing.T) {
 				},
 			},
 		},
+		"blank product": {
+			product: "", key: "key",
+			eeer: "license: failed check license: product is blank",
+		},
+		"blank key": {
+			product: "product", key: "",
+			eeer: "license: failed check license: license key is blank",
+		},
 	} {
+		tt := val
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -87,7 +102,7 @@ func TestErrors(t *testing.T) {
 			}))
 			t.Cleanup(ts.Close)
 
-			err := doCheck(ts.URL, "product", "key")
+			err := doCheck(ts.URL, tt.product, tt.key)
 
 			if tt.eeer == "" {
 				if err != nil {
