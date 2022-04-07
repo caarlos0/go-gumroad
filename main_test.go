@@ -114,14 +114,14 @@ func TestMITM(t *testing.T) {
 		body, err := ioutil.ReadAll(req.Body)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(err.Error()))
+			_, _ = w.Write([]byte(err.Error()))
 			return
 		}
 
 		data, err := url.ParseQuery(string(body))
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
-			w.Write([]byte(err.Error()))
+			_, _ = w.Write([]byte(err.Error()))
 			return
 		}
 
@@ -193,6 +193,8 @@ func TestMITM(t *testing.T) {
 }
 
 func parseCert(t *testing.T, file string) tls.Certificate {
+	t.Helper()
+
 	fp := filepath.Join("testdata", file)
 
 	bytes, err := ioutil.ReadFile(fp)
