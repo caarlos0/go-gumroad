@@ -27,69 +27,7 @@ func TestIntegrationInvalidLicense(t *testing.T) {
 
 func TestErrors(t *testing.T) {
 	t.Parallel()
-	for name, val := range map[string]struct {
-		product, key string
-		resp         GumroadResponse
-		eeer         string
-	}{
-		"invalid license": {
-			product: "product", key: "key",
-			resp: GumroadResponse{
-				Success: false,
-				Message: "some error",
-			},
-			eeer: "license: invalid license: some error",
-		},
-		"refunded": {
-			product: "product", key: "key",
-			resp: GumroadResponse{
-				Success: true,
-				Purchase: Purchase{
-					Refunded: true,
-				},
-			},
-			eeer: "license: license was refunded and is now invalid",
-		},
-		"canceled": {
-			product: "product", key: "key",
-			resp: GumroadResponse{
-				Success: true,
-				Purchase: Purchase{
-					SubscriptionCancelledAt: time.Now(),
-				},
-			},
-			eeer: "license: subscription was canceled, license is now invalid",
-		},
-		"failed": {
-			product: "product", key: "key",
-			resp: GumroadResponse{
-				Success: true,
-				Purchase: Purchase{
-					SubscriptionFailedAt: time.Now(),
-					SubscriptionID:       "xyz",
-				},
-			},
-			eeer: "license: failed to renew subscription, please check at https://gumroad.com/subscriptions/xyz/manage",
-		},
-		"valid": {
-			product: "product", key: "key",
-			resp: GumroadResponse{
-				Success: true,
-				Purchase: Purchase{
-					SaleTimestamp: time.Now(),
-					Email:         "foo@example.com",
-				},
-			},
-		},
-		"blank product": {
-			product: "", key: "key",
-			eeer: "license: failed check license: product is blank",
-		},
-		"blank key": {
-			product: "product", key: "",
-			eeer: "license: failed check license: license key is blank",
-		},
-	} {
+	for name, val := range testCases {
 		tt := val
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -223,4 +161,87 @@ func parseCert(t *testing.T, file string) tls.Certificate {
 	}
 
 	return cert
+}
+
+func BenchmarkErrors(b *testing.B) {
+	for name, tt := range testCases {
+		b.Run(name, func(b *testing.B) {
+			ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				bts, err := json.Marshal(tt.resp)
+				if err != nil {
+					b.Fatalf("unexpected error: %v", err)
+				}
+				fmt.Fprintln(w, string(bts))
+			}))
+			b.Cleanup(ts.Close)
+
+			for n := 0; n < b.N; n++ {
+				_ = doCheck(ts.URL, "product", "key")
+			}
+		})
+	}
+}
+
+var testCases = map[string]struct {
+	product, key string
+	resp         GumroadResponse
+	eeer         string
+}{
+	"invalid license": {
+		product: "product", key: "key",
+		resp: GumroadResponse{
+			Success: false,
+			Message: "some error",
+		},
+		eeer: "license: invalid license: some error",
+	},
+	"refunded": {
+		product: "product", key: "key",
+		resp: GumroadResponse{
+			Success: true,
+			Purchase: Purchase{
+				Refunded: true,
+			},
+		},
+		eeer: "license: license was refunded and is now invalid",
+	},
+	"canceled": {
+		product: "product", key: "key",
+		resp: GumroadResponse{
+			Success: true,
+			Purchase: Purchase{
+				SubscriptionCancelledAt: time.Now(),
+			},
+		},
+		eeer: "license: subscription was canceled, license is now invalid",
+	},
+	"failed": {
+		product: "product", key: "key",
+		resp: GumroadResponse{
+			Success: true,
+			Purchase: Purchase{
+				SubscriptionFailedAt: time.Now(),
+				SubscriptionID:       "xyz",
+			},
+		},
+		eeer: "license: failed to renew subscription, please check at https://gumroad.com/subscriptions/xyz/manage",
+	},
+	"valid": {
+		product: "product", key: "key",
+		resp: GumroadResponse{
+			Success: true,
+			Purchase: Purchase{
+				SaleTimestamp: time.Now(),
+				Email:         "foo@example.com",
+			},
+		},
+	},
+	"blank product": {
+		product: "", key: "key",
+		eeer: "license: failed check license: product is blank",
+	},
+	"blank key": {
+		product: "product", key: "",
+		eeer: "license: failed check license: license key is blank",
+	},
 }
