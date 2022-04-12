@@ -17,7 +17,7 @@ import (
 func TestIntegrationInvalidLicense(t *testing.T) {
 	t.Parallel()
 	expected := "license: invalid license: That license does not exist for the provided product."
-	p, err := NewGumroadProduct("this-does-not-exist-probably")
+	p, err := NewProduct("this-does-not-exist-probably")
 	if err != nil {
 		t.Errorf("unexpected error %v", err)
 	}
@@ -30,7 +30,7 @@ func TestIntegrationInvalidLicense(t *testing.T) {
 func TestEmptyProduct(t *testing.T) {
 	t.Parallel()
 	expected := "license: product permalink cannot be empty"
-	_, err := NewGumroadProduct("")
+	_, err := NewProduct("")
 	if err == nil || err.Error() != expected {
 		t.Fatalf("expected %q, got %v", expected, err)
 	}
@@ -51,7 +51,7 @@ func TestErrors(t *testing.T) {
 			}))
 			t.Cleanup(ts.Close)
 
-			p, err := NewGumroadProduct(tt.product)
+			p, err := NewProduct(tt.product)
 			if err != nil {
 				t.Errorf("unexpected error %v", err)
 			}
@@ -109,7 +109,7 @@ func TestMITM(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	p, err := NewGumroadProduct("product")
+	p, err := NewProduct("product")
 	if err != nil {
 		t.Errorf("unexpected error %v", err)
 	}
@@ -180,7 +180,7 @@ func BenchmarkErrors(b *testing.B) {
 			b.Cleanup(ts.Close)
 
 			for n := 0; n < b.N; n++ {
-				p, _ := NewGumroadProduct("product")
+				p, _ := NewProduct("product")
 				p.API = ts.URL
 				_ = p.Verify("key")
 			}
