@@ -15,18 +15,18 @@ import (
 	"time"
 )
 
-// GumroadProduct represents a product in Gumroad on which license keys can be verified.
-type GumroadProduct struct {
+// Product represents a product in Gumroad on which license keys can be verified.
+type Product struct {
 	API     string
 	Product string
 	Client  *http.Client
 }
 
-// NewGumroadProduct returns a new GumroadProduct with reasonable defaults.
-func NewGumroadProduct(product string) (GumroadProduct, error) {
+// NewProduct returns a new GumroadProduct with reasonable defaults.
+func NewProduct(product string) (Product, error) {
 	// early return if product permalink is empty
 	if product == "" {
-		return GumroadProduct{}, errors.New("license: product permalink cannot be empty")
+		return Product{}, errors.New("license: product permalink cannot be empty")
 	}
 
 	// Capture the root certificate pool at build time. `x509.SystemCertPool` is guaranteed not to return
@@ -51,7 +51,7 @@ func NewGumroadProduct(product string) (GumroadProduct, error) {
 		Proxy:                 http.ProxyFromEnvironment,
 	}
 
-	return GumroadProduct{
+	return Product{
 		API:     "https://api.gumroad.com/v2/licenses/verify",
 		Product: product,
 		Client: &http.Client{
@@ -63,7 +63,7 @@ func NewGumroadProduct(product string) (GumroadProduct, error) {
 }
 
 // CheckWithContext verifies a license key against a product in Gumroad.
-func (gp GumroadProduct) VerifyWithContext(ctx context.Context, key string) error {
+func (gp Product) VerifyWithContext(ctx context.Context, key string) error {
 	// early return if license key is empty
 	if key == "" {
 		return errors.New("license: license key cannot be empty")
@@ -112,7 +112,7 @@ func (gp GumroadProduct) VerifyWithContext(ctx context.Context, key string) erro
 }
 
 // Verify returns the result of VerifyWithContext with the background context.
-func (gp GumroadProduct) Verify(key string) error {
+func (gp Product) Verify(key string) error {
 	return gp.VerifyWithContext(context.Background(), key)
 }
 
