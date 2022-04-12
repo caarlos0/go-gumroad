@@ -5,3 +5,19 @@
 [![](http://img.shields.io/badge/godoc-reference-5272B4.svg?style=for-the-badge)](https://pkg.go.dev/github.com/caarlos0/go-gumroad)
 
 Easily check licenses against Gumroad's API.
+
+## Usage
+
+```golang
+package main
+
+import "github.com/caarlos0/go-gumroad"
+
+func check(key string) error {
+	prod, err := gumroad.NewProduct("my-product-permalink")
+	if err != nil {
+		return err
+	}
+	return prod.Verify(key)
+}
+```
