@@ -55,8 +55,7 @@ func NewProduct(product string) (Product, error) {
 		API:     "https://api.gumroad.com/v2/licenses/verify",
 		Product: product,
 		Client: &http.Client{
-			// 5 seconds should be plenty for GumRoad to respond
-			Timeout:   5 * time.Second,
+			Timeout:   time.Minute,
 			Transport: transport,
 		},
 	}, nil
