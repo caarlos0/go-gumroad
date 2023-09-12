@@ -41,7 +41,7 @@ jobs:
           file: ./coverage.txt
       -
         name: Run GoReleaser
-        uses: goreleaser/goreleaser-action@v4
+        uses: goreleaser/goreleaser-action@v5
         if: success() && startsWith(github.ref, 'refs/tags/')
         with:
           version: latest
