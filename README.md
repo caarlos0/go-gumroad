@@ -15,10 +15,11 @@ package main
 import "github.com/caarlos0/go-gumroad"
 
 func check(key string) error {
-	prod, err := gumroad.NewProduct("my-product-permalink")
+	prod, err := gumroad.NewProduct("my_product_id")
 	if err != nil {
 		return err
 	}
+
 	return prod.Verify(key)
 }
 ```
