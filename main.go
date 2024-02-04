@@ -17,16 +17,18 @@ import (
 
 // Product represents a product in Gumroad on which license keys can be verified.
 type Product struct {
-	API     string
+	ID  string
+	API string
+	// Deprecated: `product_permalink` parameter is deprecated.
 	Product string
 	Client  *http.Client
 }
 
 // NewProduct returns a new GumroadProduct with reasonable defaults.
-func NewProduct(product string) (Product, error) {
-	// early return if product permalink is empty
-	if product == "" {
-		return Product{}, errors.New("license: product permalink cannot be empty")
+func NewProduct(ID string) (Product, error) {
+	// early return if product ID is empty
+	if ID == "" {
+		return Product{}, errors.New("license: product ID cannot be empty")
 	}
 
 	// Capture the root certificate pool at build time. `x509.SystemCertPool` is guaranteed not to return
@@ -52,8 +54,8 @@ func NewProduct(product string) (Product, error) {
 	}
 
 	return Product{
-		API:     "https://api.gumroad.com/v2/licenses/verify",
-		Product: product,
+		API: "https://api.gumroad.com/v2/licenses/verify",
+		ID:  ID,
 		Client: &http.Client{
 			Timeout:   time.Minute,
 			Transport: transport,
@@ -68,8 +70,8 @@ func (gp Product) VerifyWithContext(ctx context.Context, key string) error {
 		return errors.New("license: license key cannot be empty")
 	}
 	req, err := http.NewRequestWithContext(ctx, "POST", gp.API, strings.NewReader(url.Values{
-		"product_permalink": {gp.Product},
-		"license_key":       {key},
+		"product_id":  {gp.ID},
+		"license_key": {key},
 	}.Encode()))
 	if err != nil {
 		return err
