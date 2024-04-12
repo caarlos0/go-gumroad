@@ -61,8 +61,14 @@ func NewProduct(product string) (Product, error) {
 	}, nil
 }
 
+const maxRetries = 5
+
 // CheckWithContext verifies a license key against a product in Gumroad.
 func (gp Product) VerifyWithContext(ctx context.Context, key string) error {
+	return gp.doVerify(ctx, key, 1)
+}
+
+func (gp Product) doVerify(ctx context.Context, key string, try uint8) error {
 	// early return if license key is empty
 	if key == "" {
 		return errors.New("license: license key cannot be empty")
@@ -85,6 +91,14 @@ func (gp Product) VerifyWithContext(ctx context.Context, key string) error {
 		return fmt.Errorf("license: failed check license: %w", err)
 	}
 	defer resp.Body.Close()
+
+	// something on server side, should probably retry...
+	if resp.StatusCode >= 500 {
+		if try == maxRetries {
+			return fmt.Errorf("license: likely gumroad issue: %s", string(bts))
+		}
+		return gp.doVerify(ctx, key, try+1)
+	}
 
 	var gumroad GumroadResponse
 	if err := json.Unmarshal(bts, &gumroad); err != nil {

@@ -14,6 +14,8 @@ import (
 	"time"
 )
 
+const license = "DEADBEEF-CAFE1234-5678DEAD-BEEFCAFE"
+
 func TestIntegrationInvalidLicense(t *testing.T) {
 	t.Parallel()
 	expected := "license: invalid license: That license does not exist for the provided product."
@@ -68,6 +70,39 @@ func TestErrors(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func Test5xx(t *testing.T) {
+	t.Parallel()
+
+	calls := 0
+
+	// server will stand in for GumRoad, and assume that any license it sees is invalid
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		calls++
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`some error`))
+	}))
+	t.Cleanup(server.Close)
+
+	p, err := NewProduct("product")
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
+	p.API = server.URL
+	p.Client = server.Client()
+
+	err = p.Verify(license)
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	expect := "license: likely gumroad issue: some error"
+	if s := err.Error(); s != expect {
+		t.Errorf("expected %q, got %q", expect, s)
+	}
+	if calls != 5 {
+		t.Errorf("should have called the api 5 times, but called %d", calls)
 	}
 }
 
