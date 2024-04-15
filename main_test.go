@@ -3,6 +3,7 @@ package gumroad
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -81,6 +82,18 @@ func Test5xx(t *testing.T) {
 	// server will stand in for GumRoad, and assume that any license it sees is invalid
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		calls++
+		t.Log("try", calls)
+		if calls == 3 {
+			bts, _ := json.Marshal(GumroadResponse{
+				Success: true,
+				Purchase: Purchase{
+					SaleTimestamp: time.Now(),
+					Email:         "foo@example.com",
+				},
+			})
+			_, _ = w.Write(bts)
+			return
+		}
 		w.WriteHeader(http.StatusInternalServerError)
 		_, _ = w.Write([]byte(`some error`))
 	}))
@@ -94,15 +107,11 @@ func Test5xx(t *testing.T) {
 	p.Client = server.Client()
 
 	err = p.Verify(license)
-	if err == nil {
-		t.Fatal("expected an error")
+	if err != nil {
+		t.Fatal("expected no error")
 	}
-	expect := "license: likely gumroad issue: some error"
-	if s := err.Error(); s != expect {
-		t.Errorf("expected %q, got %q", expect, s)
-	}
-	if calls != 5 {
-		t.Errorf("should have called the api 5 times, but called %d", calls)
+	if calls != 3 {
+		t.Errorf("should have called the api 3 times, but called %d", calls)
 	}
 }
 
@@ -171,7 +180,7 @@ func TestMITM(t *testing.T) {
 	}))
 	t.Cleanup(mitm.Close)
 	// Throw away the log message from http.Server.go complaining about the invalid TLS cert
-	mitm.Config.ErrorLog = log.New(ioutil.Discard, "", 0)
+	mitm.Config.ErrorLog = log.New(io.Discard, "", 0)
 
 	p.API = mitm.URL
 	// Set the client back to the default, which doesn't trust the test certificate used by mitm

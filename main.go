@@ -68,7 +68,7 @@ func (gp Product) VerifyWithContext(ctx context.Context, key string) error {
 	return gp.doVerify(ctx, key, 1)
 }
 
-func (gp Product) doVerify(ctx context.Context, key string, try uint8) error {
+func (gp Product) doVerify(ctx context.Context, key string, try int) error {
 	// early return if license key is empty
 	if key == "" {
 		return errors.New("license: license key cannot be empty")
@@ -97,6 +97,7 @@ func (gp Product) doVerify(ctx context.Context, key string, try uint8) error {
 		if try == maxRetries {
 			return fmt.Errorf("license: likely gumroad issue: %s", string(bts))
 		}
+		time.Sleep(time.Duration(try*500) * time.Millisecond)
 		return gp.doVerify(ctx, key, try+1)
 	}
 
