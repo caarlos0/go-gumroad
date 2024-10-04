@@ -31,7 +31,7 @@ func TestIntegrationInvalidLicense(t *testing.T) {
 
 func TestEmptyProduct(t *testing.T) {
 	t.Parallel()
-	expected := "license: product permalink cannot be empty"
+	expected := "license: product ID cannot be empty"
 	_, err := NewProduct("")
 	if err == nil || err.Error() != expected {
 		t.Fatalf("expected %q, got %v", expected, err)
@@ -53,7 +53,7 @@ func TestErrors(t *testing.T) {
 			}))
 			t.Cleanup(ts.Close)
 
-			p, err := NewProduct(tt.product)
+			p, err := NewProduct(tt.id)
 			if err != nil {
 				t.Errorf("unexpected error %v", err)
 			}
@@ -232,12 +232,12 @@ func BenchmarkErrors(b *testing.B) {
 }
 
 var testCases = map[string]struct {
-	product, key string
-	resp         GumroadResponse
-	eeer         string
+	id, key string
+	resp    GumroadResponse
+	eeer    string
 }{
 	"invalid license": {
-		product: "product", key: "key",
+		id: "product_id", key: "key",
 		resp: GumroadResponse{
 			Success: false,
 			Message: "some error",
@@ -245,7 +245,7 @@ var testCases = map[string]struct {
 		eeer: "license: invalid license: some error",
 	},
 	"refunded": {
-		product: "product", key: "key",
+		id: "product_id", key: "key",
 		resp: GumroadResponse{
 			Success: true,
 			Purchase: Purchase{
@@ -255,7 +255,7 @@ var testCases = map[string]struct {
 		eeer: "license: license was refunded and is now invalid",
 	},
 	"canceled": {
-		product: "product", key: "key",
+		id: "product_id", key: "key",
 		resp: GumroadResponse{
 			Success: true,
 			Purchase: Purchase{
@@ -265,7 +265,7 @@ var testCases = map[string]struct {
 		eeer: "license: subscription was canceled, license is now invalid",
 	},
 	"failed": {
-		product: "product", key: "key",
+		id: "product_id", key: "key",
 		resp: GumroadResponse{
 			Success: true,
 			Purchase: Purchase{
@@ -276,7 +276,7 @@ var testCases = map[string]struct {
 		eeer: "license: failed to renew subscription, please check at https://gumroad.com/subscriptions/xyz/manage",
 	},
 	"valid": {
-		product: "product", key: "key",
+		id: "product_id", key: "key",
 		resp: GumroadResponse{
 			Success: true,
 			Purchase: Purchase{
@@ -286,7 +286,7 @@ var testCases = map[string]struct {
 		},
 	},
 	"blank key": {
-		product: "product", key: "",
+		id: "product_id", key: "",
 		eeer: "license: license key cannot be empty",
 	},
 }
