@@ -144,15 +144,53 @@ type GumroadResponse struct {
 
 // Purchase is Purchase from the GumRoad API
 type Purchase struct {
-	Email                   string    `json:"email"`
-	Refunded                bool      `json:"refunded"`
-	SaleTimestamp           time.Time `json:"sale_timestamp"`
-	SubscriptionCancelledAt time.Time `json:"subscription_cancelled_at"`
-	SubscriptionFailedAt    time.Time `json:"subscription_failed_at"`
-	SubscriptionID          string    `json:"subscription_id"`
 	SellerID                string    `json:"seller_id"`
 	ProductID               string    `json:"product_id"`
 	ProductName             string    `json:"product_name"`
 	Permalink               string    `json:"permalink"`
 	ProductPermalink        string    `json:"product_permalink"`
+	ShortProductID          string    `json:"short_product_id"`
+	Email                   string    `json:"email"`
+	Price                   int       `json:"price"`
+	GumroadFee              int       `json:"gumroad_fee"`
+	Currency                string    `json:"currency"`
+	Quantity                int       `json:"quantity"`
+	DiscoverFeeCharged      bool      `json:"discover_fee_charged"`
+	CanContact              bool      `json:"can_contact"`
+	Referrer                string    `json:"referrer"`
+	Card                    Card      `json:"card"`
+	OrderNumber             int       `json:"order_number"`
+	SaleID                  string    `json:"sale_id"`
+	SaleTimestamp           time.Time `json:"sale_timestamp"`
+	SubscriptionID          string    `json:"subscription_id"`
+	Variants                string    `json:"variants"`
+	OfferCode               OfferCode `json:"offer_code"`
+	LicenseKey              string    `json:"license_key"`
+	IsMultiseatLicense      bool      `json:"is_multiseat_license"`
+	IPCountry               string    `json:"ip_country"`
+	Recurrence              string    `json:"recurrence"`
+	IsGiftReceiverPurchase  bool      `json:"is_gift_receiver_purchase"`
+	Refunded                bool      `json:"refunded"`
+	Disputed                bool      `json:"disputed"`
+	DisputeWon              bool      `json:"dispute_won"`
+	ID                      string    `json:"id"`
+	CreatedAt               string    `json:"created_at"`
+	CustomFields            []any     `json:"custom_fields"`
+	SubscriptionEndedAt     *string   `json:"subscription_ended_at"`
+	SubscriptionCancelledAt time.Time `json:"subscription_cancelled_at"`
+	SubscriptionFailedAt    time.Time `json:"subscription_failed_at"`
+}
+
+type Card struct {
+	Visual      string `json:"visual"`
+	Type        string `json:"type"`
+	Bin         string `json:"bin"`
+	ExpiryMonth string `json:"expiry_month"`
+	ExpiryYear  string `json:"expiry_year"`
+}
+
+type OfferCode struct {
+	Code               string `json:"code"`
+	DisplayedAmountOff string `json:"displayed_amount_off"`
+	Name               string `json:"name"`
 }
