@@ -124,13 +124,16 @@ func (gp Product) doVerify(ctx context.Context, key string, try int) error {
 	}
 
 	if gumroad.Purchase.ProductID != gp.ProductID {
-		return fmt.Errorf("license: unexpected product ID")
+		return fmt.Errorf("license: invalid product ID")
+	}
+
+	if gumroad.Purchase.LicenseKey != key {
+		return fmt.Errorf("license: invalid license")
 	}
 
 	if gp.Validate != nil {
 		return gp.Validate(gumroad)
 	}
-
 	return nil
 }
 

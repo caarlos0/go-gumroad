@@ -3,6 +3,7 @@ package gumroad
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -58,6 +59,12 @@ func TestErrors(t *testing.T) {
 			if err != nil {
 				t.Errorf("unexpected error %v", err)
 			}
+			p.Validate = func(gr GumroadResponse) error {
+				if gr.Purchase.SellerID != "seller-id" {
+					return errors.New("invalid seller id")
+				}
+				return nil
+			}
 			p.API = ts.URL
 			err = p.Verify(context.Background(), tt.key)
 
@@ -90,6 +97,7 @@ func Test5xx(t *testing.T) {
 					SaleTimestamp: time.Now(),
 					Email:         "foo@example.com",
 					ProductID:     "product",
+					LicenseKey:    license,
 				},
 			})
 			_, _ = w.Write(bts)
@@ -141,8 +149,9 @@ func TestMITM(t *testing.T) {
 		resp := GumroadResponse{
 			Success: data.Get("license_key") == license,
 			Purchase: Purchase{
-				ProductID: productID,
-				SellerID:  sellerID,
+				ProductID:  productID,
+				SellerID:   sellerID,
+				LicenseKey: license,
 			},
 		}
 
@@ -190,8 +199,9 @@ func TestMITM(t *testing.T) {
 		if err := json.NewEncoder(w).Encode(GumroadResponse{
 			Success: true,
 			Purchase: Purchase{
-				ProductID: productID,
-				SellerID:  sellerID,
+				ProductID:  productID,
+				SellerID:   sellerID,
+				LicenseKey: license,
 			},
 		}); err != nil {
 			t.Errorf("error encoding response: %s", err)
@@ -303,11 +313,53 @@ var testCases = map[string]struct {
 				SaleTimestamp: time.Now(),
 				Email:         "foo@example.com",
 				ProductID:     "product",
+				LicenseKey:    "key",
+				SellerID:      "seller-id",
 			},
 		},
 	},
 	"blank key": {
 		product: "product", key: "",
 		eeer: "license: license key cannot be empty",
+	},
+	"product id missmatch": {
+		product: "product", key: "key",
+		eeer: "license: invalid product ID",
+		resp: GumroadResponse{
+			Success: true,
+			Purchase: Purchase{
+				SaleTimestamp: time.Now(),
+				Email:         "foo@example.com",
+				ProductID:     "product2",
+				LicenseKey:    "key",
+			},
+		},
+	},
+	"invalid response license": {
+		product: "product", key: "key",
+		eeer: "license: invalid license",
+		resp: GumroadResponse{
+			Success: true,
+			Purchase: Purchase{
+				SaleTimestamp: time.Now(),
+				Email:         "foo@example.com",
+				ProductID:     "product",
+				LicenseKey:    "key2",
+			},
+		},
+	},
+	"seller id missmatch": {
+		product: "product", key: "key",
+		eeer: "invalid seller id",
+		resp: GumroadResponse{
+			Success: true,
+			Purchase: Purchase{
+				SaleTimestamp: time.Now(),
+				Email:         "foo@example.com",
+				ProductID:     "product",
+				LicenseKey:    "key",
+				SellerID:      "someone-else",
+			},
+		},
 	},
 }
