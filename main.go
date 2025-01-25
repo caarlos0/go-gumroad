@@ -17,16 +17,17 @@ import (
 
 // Product represents a product in Gumroad on which license keys can be verified.
 type Product struct {
-	API     string
-	Product string
-	Client  *http.Client
+	API       string
+	ProductID string
+	Client    *http.Client
+	Validate  func(GumroadResponse) error
 }
 
 // NewProduct returns a new GumroadProduct with reasonable defaults.
-func NewProduct(product string) (Product, error) {
+func NewProduct(productID string) (Product, error) {
 	// early return if product permalink is empty
-	if product == "" {
-		return Product{}, errors.New("license: product permalink cannot be empty")
+	if productID == "" {
+		return Product{}, errors.New("license: product ID cannot be empty")
 	}
 
 	// Capture the root certificate pool at build time. `x509.SystemCertPool` is guaranteed not to return
@@ -52,8 +53,8 @@ func NewProduct(product string) (Product, error) {
 	}
 
 	return Product{
-		API:     "https://api.gumroad.com/v2/licenses/verify",
-		Product: product,
+		API:       "https://api.gumroad.com/v2/licenses/verify",
+		ProductID: productID,
 		Client: &http.Client{
 			Timeout:   time.Minute,
 			Transport: transport,
@@ -63,8 +64,8 @@ func NewProduct(product string) (Product, error) {
 
 const maxRetries = 5
 
-// CheckWithContext verifies a license key against a product in Gumroad.
-func (gp Product) VerifyWithContext(ctx context.Context, key string) error {
+// Verify returns the result of VerifyWithContext with the background context.
+func (gp Product) Verify(ctx context.Context, key string) error {
 	return gp.doVerify(ctx, key, 1)
 }
 
@@ -74,8 +75,8 @@ func (gp Product) doVerify(ctx context.Context, key string, try int) error {
 		return errors.New("license: license key cannot be empty")
 	}
 	req, err := http.NewRequestWithContext(ctx, "POST", gp.API, strings.NewReader(url.Values{
-		"product_permalink": {gp.Product},
-		"license_key":       {key},
+		"product_id":  {gp.ProductID},
+		"license_key": {key},
 	}.Encode()))
 	if err != nil {
 		return err
@@ -122,12 +123,15 @@ func (gp Product) doVerify(ctx context.Context, key string, try int) error {
 		return fmt.Errorf("license: failed to renew subscription, please check at https://gumroad.com/subscriptions/%s/manage", gumroad.Purchase.SubscriptionID)
 	}
 
-	return nil
-}
+	if gumroad.Purchase.ProductID != gp.ProductID {
+		return fmt.Errorf("license: unexpected product ID")
+	}
 
-// Verify returns the result of VerifyWithContext with the background context.
-func (gp Product) Verify(key string) error {
-	return gp.VerifyWithContext(context.Background(), key)
+	if gp.Validate != nil {
+		return gp.Validate(gumroad)
+	}
+
+	return nil
 }
 
 // GumroadResponse is an API response.
@@ -146,4 +150,9 @@ type Purchase struct {
 	SubscriptionCancelledAt time.Time `json:"subscription_cancelled_at"`
 	SubscriptionFailedAt    time.Time `json:"subscription_failed_at"`
 	SubscriptionID          string    `json:"subscription_id"`
+	SellerID                string    `json:"seller_id"`
+	ProductID               string    `json:"product_id"`
+	ProductName             string    `json:"product_name"`
+	Permalink               string    `json:"permalink"`
+	ProductPermalink        string    `json:"product_permalink"`
 }
