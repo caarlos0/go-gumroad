@@ -68,13 +68,13 @@ func TestErrors(t *testing.T) {
 			p.API = ts.URL
 			err = p.Verify(context.Background(), tt.key)
 
-			if tt.eeer == "" {
+			if tt.err == "" {
 				if err != nil {
 					t.Fatalf("expected no error, got %v", err)
 				}
 			} else {
-				if err == nil || err.Error() != tt.eeer {
-					t.Fatalf("expected %q, got %v", tt.eeer, err)
+				if err == nil || err.Error() != tt.err {
+					t.Fatalf("expected %q, got %v", tt.err, err)
 				}
 			}
 		})
@@ -264,7 +264,7 @@ func BenchmarkErrors(b *testing.B) {
 var testCases = map[string]struct {
 	product, key string
 	resp         GumroadResponse
-	eeer         string
+	err          string
 }{
 	"invalid license": {
 		product: "product", key: "key",
@@ -272,7 +272,7 @@ var testCases = map[string]struct {
 			Success: false,
 			Message: "some error",
 		},
-		eeer: "license: invalid license: some error",
+		err: "license: invalid license: some error",
 	},
 	"refunded": {
 		product: "product", key: "key",
@@ -282,7 +282,7 @@ var testCases = map[string]struct {
 				Refunded: true,
 			},
 		},
-		eeer: "license: license was refunded and is now invalid",
+		err: "license: license was refunded and is now invalid",
 	},
 	"canceled": {
 		product: "product", key: "key",
@@ -292,7 +292,7 @@ var testCases = map[string]struct {
 				SubscriptionCancelledAt: time.Now(),
 			},
 		},
-		eeer: "license: subscription was canceled, license is now invalid",
+		err: "license: subscription was canceled, license is now invalid",
 	},
 	"failed": {
 		product: "product", key: "key",
@@ -303,7 +303,7 @@ var testCases = map[string]struct {
 				SubscriptionID:       "xyz",
 			},
 		},
-		eeer: "license: failed to renew subscription, please check at https://gumroad.com/subscriptions/xyz/manage",
+		err: "license: failed to renew subscription, please check at https://gumroad.com/subscriptions/xyz/manage",
 	},
 	"valid": {
 		product: "product", key: "key",
@@ -320,11 +320,11 @@ var testCases = map[string]struct {
 	},
 	"blank key": {
 		product: "product", key: "",
-		eeer: "license: license key cannot be empty",
+		err: "license: license key cannot be empty",
 	},
 	"product id missmatch": {
 		product: "product", key: "key",
-		eeer: "license: invalid product ID",
+		err: "license: invalid product ID",
 		resp: GumroadResponse{
 			Success: true,
 			Purchase: Purchase{
@@ -337,7 +337,7 @@ var testCases = map[string]struct {
 	},
 	"invalid response license": {
 		product: "product", key: "key",
-		eeer: "license: invalid license",
+		err: "license: invalid license",
 		resp: GumroadResponse{
 			Success: true,
 			Purchase: Purchase{
@@ -350,7 +350,7 @@ var testCases = map[string]struct {
 	},
 	"seller id missmatch": {
 		product: "product", key: "key",
-		eeer: "invalid seller id",
+		err: "invalid seller id",
 		resp: GumroadResponse{
 			Success: true,
 			Purchase: Purchase{
