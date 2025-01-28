@@ -1,7 +1,9 @@
 package gumroad
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -23,7 +25,7 @@ func TestIntegrationInvalidLicense(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error %v", err)
 	}
-	err = p.Verify("nope")
+	err = p.Verify(context.Background(), "nope")
 	if err == nil || err.Error() != expected {
 		t.Errorf("expected an error %q, got %v", expected, err)
 	}
@@ -31,7 +33,7 @@ func TestIntegrationInvalidLicense(t *testing.T) {
 
 func TestEmptyProduct(t *testing.T) {
 	t.Parallel()
-	expected := "license: product permalink cannot be empty"
+	expected := "license: product ID cannot be empty"
 	_, err := NewProduct("")
 	if err == nil || err.Error() != expected {
 		t.Fatalf("expected %q, got %v", expected, err)
@@ -57,8 +59,14 @@ func TestErrors(t *testing.T) {
 			if err != nil {
 				t.Errorf("unexpected error %v", err)
 			}
+			p.Validate = func(gr GumroadResponse) error {
+				if gr.Purchase.SellerID != "seller-id" {
+					return errors.New("invalid seller id")
+				}
+				return nil
+			}
 			p.API = ts.URL
-			err = p.Verify(tt.key)
+			err = p.Verify(context.Background(), tt.key)
 
 			if tt.eeer == "" {
 				if err != nil {
@@ -88,6 +96,8 @@ func Test5xx(t *testing.T) {
 				Purchase: Purchase{
 					SaleTimestamp: time.Now(),
 					Email:         "foo@example.com",
+					ProductID:     "product",
+					LicenseKey:    license,
 				},
 			})
 			_, _ = w.Write(bts)
@@ -105,7 +115,7 @@ func Test5xx(t *testing.T) {
 	p.API = server.URL
 	p.Client = server.Client()
 
-	err = p.Verify(license)
+	err = p.Verify(context.Background(), license)
 	if err != nil {
 		t.Fatal("expected no error")
 	}
@@ -116,7 +126,9 @@ func Test5xx(t *testing.T) {
 
 func TestMITM(t *testing.T) {
 	t.Parallel()
-	license := "DEADBEEF-CAFE1234-5678DEAD-BEEFCAFE"
+	const license = "DEADBEEF-CAFE1234-5678DEAD-BEEFCAFE"
+	const productID = "product-id-1234"
+	const sellerID = "seller-id-1234"
 
 	// server will stand in for GumRoad, and assume that any license it sees is invalid
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -136,6 +148,11 @@ func TestMITM(t *testing.T) {
 
 		resp := GumroadResponse{
 			Success: data.Get("license_key") == license,
+			Purchase: Purchase{
+				ProductID:  productID,
+				SellerID:   sellerID,
+				LicenseKey: license,
+			},
 		}
 
 		switch resp.Success {
@@ -152,20 +169,26 @@ func TestMITM(t *testing.T) {
 	}))
 	t.Cleanup(server.Close)
 
-	p, err := NewProduct("product")
+	p, err := NewProduct(productID)
 	if err != nil {
 		t.Errorf("unexpected error %v", err)
+	}
+	p.Validate = func(gr GumroadResponse) error {
+		if gr.Purchase.SellerID != sellerID {
+			return fmt.Errorf("invalid seller id")
+		}
+		return nil
 	}
 	p.API = server.URL
 	// Save the default client, which does not trust the test TLS certificate
 	defaultClient := p.Client
 	// The server.Client() is configured to trust the test TLS certificate
 	p.Client = server.Client()
-	err = p.Verify("fake-key")
+	err = p.Verify(context.Background(), "fake-key")
 	if !strings.Contains(err.Error(), "invalid license") {
 		t.Fatalf("expected error to indicate that the license is invalid, but got: %s", err)
 	}
-	if err := p.Verify(license); err != nil {
+	if err := p.Verify(context.Background(), license); err != nil {
 		t.Fatalf("unexpected error when checking valid key: %s", err)
 	}
 
@@ -173,7 +196,14 @@ func TestMITM(t *testing.T) {
 	mitm := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Header().Add("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(GumroadResponse{Success: true}); err != nil {
+		if err := json.NewEncoder(w).Encode(GumroadResponse{
+			Success: true,
+			Purchase: Purchase{
+				ProductID:  productID,
+				SellerID:   sellerID,
+				LicenseKey: license,
+			},
+		}); err != nil {
 			t.Errorf("error encoding response: %s", err)
 		}
 	}))
@@ -184,7 +214,7 @@ func TestMITM(t *testing.T) {
 	p.API = mitm.URL
 	// Set the client back to the default, which doesn't trust the test certificate used by mitm
 	p.Client = defaultClient
-	err = p.Verify(license)
+	err = p.Verify(context.Background(), license)
 	if err == nil {
 		t.Fatalf("MITM was successful")
 	} else if !strings.Contains(err.Error(), "failed check license") {
@@ -201,11 +231,11 @@ func TestMITM(t *testing.T) {
 
 	p.API = proxyServer.URL
 	p.Client = proxyServer.Client()
-	err = p.Verify("fake-key")
+	err = p.Verify(context.Background(), "fake-key")
 	if !strings.Contains(err.Error(), "invalid license") {
 		t.Fatalf("expected error to indicate that the license is invalid, but got: %s", err)
 	}
-	if err := p.Verify(license); err != nil {
+	if err := p.Verify(context.Background(), license); err != nil {
 		t.Fatalf("unexpected error when checking valid key: %s", err)
 	}
 }
@@ -225,7 +255,7 @@ func BenchmarkErrors(b *testing.B) {
 			for n := 0; n < b.N; n++ {
 				p, _ := NewProduct("product")
 				p.API = ts.URL
-				_ = p.Verify("key")
+				_ = p.Verify(context.Background(), "key")
 			}
 		})
 	}
@@ -282,11 +312,54 @@ var testCases = map[string]struct {
 			Purchase: Purchase{
 				SaleTimestamp: time.Now(),
 				Email:         "foo@example.com",
+				ProductID:     "product",
+				LicenseKey:    "key",
+				SellerID:      "seller-id",
 			},
 		},
 	},
 	"blank key": {
 		product: "product", key: "",
 		eeer: "license: license key cannot be empty",
+	},
+	"product id mismatch": {
+		product: "product", key: "key",
+		eeer: "license: invalid product ID",
+		resp: GumroadResponse{
+			Success: true,
+			Purchase: Purchase{
+				SaleTimestamp: time.Now(),
+				Email:         "foo@example.com",
+				ProductID:     "product2",
+				LicenseKey:    "key",
+			},
+		},
+	},
+	"invalid response license": {
+		product: "product", key: "key",
+		eeer: "license: invalid license",
+		resp: GumroadResponse{
+			Success: true,
+			Purchase: Purchase{
+				SaleTimestamp: time.Now(),
+				Email:         "foo@example.com",
+				ProductID:     "product",
+				LicenseKey:    "key2",
+			},
+		},
+	},
+	"seller id mismatch": {
+		product: "product", key: "key",
+		eeer: "invalid seller id",
+		resp: GumroadResponse{
+			Success: true,
+			Purchase: Purchase{
+				SaleTimestamp: time.Now(),
+				Email:         "foo@example.com",
+				ProductID:     "product",
+				LicenseKey:    "key",
+				SellerID:      "someone-else",
+			},
+		},
 	},
 }
