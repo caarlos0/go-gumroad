@@ -179,7 +179,7 @@ type Purchase struct {
 	ID                      string    `json:"id"`
 	CreatedAt               string    `json:"created_at"`
 	CustomFields            []any     `json:"custom_fields"`
-	SubscriptionEndedAt     *string   `json:"subscription_ended_at"`
+	SubscriptionEndedAt     time.Time `json:"subscription_ended_at"`
 	SubscriptionCancelledAt time.Time `json:"subscription_cancelled_at"`
 	SubscriptionFailedAt    time.Time `json:"subscription_failed_at"`
 }
