@@ -322,7 +322,7 @@ var testCases = map[string]struct {
 		product: "product", key: "",
 		eeer: "license: license key cannot be empty",
 	},
-	"product id missmatch": {
+	"product id mismatch": {
 		product: "product", key: "key",
 		eeer: "license: invalid product ID",
 		resp: GumroadResponse{
@@ -348,7 +348,7 @@ var testCases = map[string]struct {
 			},
 		},
 	},
-	"seller id missmatch": {
+	"seller id mismatch": {
 		product: "product", key: "key",
 		eeer: "invalid seller id",
 		resp: GumroadResponse{
