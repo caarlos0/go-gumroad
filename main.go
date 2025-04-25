@@ -111,12 +111,16 @@ func (gp Product) doVerify(ctx context.Context, key string, try int) error {
 		return fmt.Errorf("license: invalid license: %s", gumroad.Message)
 	}
 
+	if gumroad.Purchase.Disputed {
+		return fmt.Errorf("license: purchase is being disputed, and therefore is invalid")
+	}
+
 	if gumroad.Purchase.Refunded {
 		return fmt.Errorf("license: license was refunded and is now invalid")
 	}
 
-	if !gumroad.Purchase.SubscriptionCancelledAt.IsZero() {
-		return fmt.Errorf("license: subscription was canceled, license is now invalid")
+	if !gumroad.Purchase.SubscriptionEndedAt.IsZero() {
+		return fmt.Errorf("license: subscription ended, license is now invalid")
 	}
 
 	if !gumroad.Purchase.SubscriptionFailedAt.IsZero() {
