@@ -184,6 +184,7 @@ type Purchase struct {
 	SubscriptionFailedAt    time.Time `json:"subscription_failed_at"`
 }
 
+// ManagementURL returns the gumroad url to manage this purchase's subscription.
 func (p Purchase) ManagementURL() string {
 	return fmt.Sprintf("https://gumroad.com/subscriptions/%s/manage", p.SubscriptionID)
 }
