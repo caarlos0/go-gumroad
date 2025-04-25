@@ -120,7 +120,7 @@ func (gp Product) doVerify(ctx context.Context, key string, try int) error {
 	}
 
 	if !gumroad.Purchase.SubscriptionFailedAt.IsZero() {
-		return fmt.Errorf("license: failed to renew subscription, please check at https://gumroad.com/subscriptions/%s/manage", gumroad.Purchase.SubscriptionID)
+		return fmt.Errorf("license: failed to renew subscription, please check at %s", gumroad.Purchase.ManagementURL())
 	}
 
 	if gumroad.Purchase.ProductID != gp.ProductID {
@@ -182,6 +182,10 @@ type Purchase struct {
 	SubscriptionEndedAt     time.Time `json:"subscription_ended_at"`
 	SubscriptionCancelledAt time.Time `json:"subscription_cancelled_at"`
 	SubscriptionFailedAt    time.Time `json:"subscription_failed_at"`
+}
+
+func (p Purchase) ManagementURL() string {
+	return fmt.Sprintf("https://gumroad.com/subscriptions/%s/manage", p.SubscriptionID)
 }
 
 type Card struct {
