@@ -284,15 +284,25 @@ var testCases = map[string]struct {
 		},
 		eeer: "license: license was refunded and is now invalid",
 	},
-	"canceled": {
+	"disputed": {
 		product: "product", key: "key",
 		resp: GumroadResponse{
 			Success: true,
 			Purchase: Purchase{
-				SubscriptionCancelledAt: time.Now(),
+				Disputed: true,
 			},
 		},
-		eeer: "license: subscription was canceled, license is now invalid",
+		eeer: "license: purchase is being disputed, and therefore is invalid",
+	},
+	"ended": {
+		product: "product", key: "key",
+		resp: GumroadResponse{
+			Success: true,
+			Purchase: Purchase{
+				SubscriptionEndedAt: time.Now(),
+			},
+		},
+		eeer: "license: subscription ended, license is now invalid",
 	},
 	"failed": {
 		product: "product", key: "key",
