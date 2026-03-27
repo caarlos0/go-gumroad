@@ -19,7 +19,7 @@ jobs:
         with:
           go-version: stable
       - run: make setup ci
-      - uses: codecov/codecov-action@v5
+      - uses: codecov/codecov-action@v6
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           file: ./coverage.txt
